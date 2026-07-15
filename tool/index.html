@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sounding Board — a private space to think things through</title>
+<meta name="description" content="A free, private reflection and journaling companion. Guided prompts to untangle a hard moment, name what you feel, and steady yourself. Not therapy — a tool for the space between. Nothing is saved or sent.">
+<style>
+  :root{--green:#2f6d4a;--green-deep:#1f4d33;--gold:#a9780a;--gold-bright:#c99a2e;--paper:#f7f6f1;--card:#fff;--ink:#20261f;--muted:#5c665a;--line:#e6e2d6;--warm:#8a4b2f;--serif:"Iowan Old Style",Palatino,Georgia,serif;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color-scheme:light dark;}
+  @media (prefers-color-scheme:dark){:root{--green:#5fb488;--green-deep:#123a27;--paper:#151a15;--card:#1b211b;--ink:#e8ede6;--muted:#9aa89a;--line:#2b332b;--warm:#e0a483;}}
+  *{box-sizing:border-box}body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.6;font-size:17px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  .crisis{background:#7a2e1e;color:#fff;font-size:.9rem;padding:10px 0}
+  @media(prefers-color-scheme:dark){.crisis{background:#5c2417}}
+  .crisis .wrap{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .crisis b{white-space:nowrap}.crisis a{color:#ffe;text-decoration:underline}
+  header{padding:30px 0 6px}h1{font-family:var(--serif);font-size:clamp(1.8rem,4vw,2.4rem);margin:.2em 0;color:var(--green-deep)}
+  @media(prefers-color-scheme:dark){h1{color:#cfe6da}}
+  .lede{color:var(--muted);max-width:60ch}
+  .note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:8px;padding:12px 14px;font-size:.9rem;color:var(--muted);margin:16px 0}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 6px}
+  .tab{border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:9px 15px;border-radius:999px;font:inherit;font-size:.92rem;cursor:pointer}
+  .tab[aria-selected="true"]{background:var(--green);color:#fff;border-color:var(--green)}
+  @media(prefers-color-scheme:dark){.tab[aria-selected="true"]{color:#08130c}}
+  .panel{display:none;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin-top:12px}.panel.on{display:block}
+  label{display:block;font-weight:600;margin:16px 0 5px;font-size:.95rem}.q{color:var(--muted);font-weight:400;font-size:.88rem;margin-top:2px}
+  textarea{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;min-height:70px;resize:vertical}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+  .chip{border:1.5px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 13px;font:inherit;font-size:.88rem;cursor:pointer}
+  .chip.on{background:var(--warm);color:#fff;border-color:var(--warm)}
+  .step{font-size:2rem;text-align:center;padding:14px;font-family:var(--serif);color:var(--green)}
+  .ground{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px;margin:10px 0}
+  .ground b{color:var(--warm)}
+  footer{color:var(--muted);font-size:.82rem;padding:26px 0 50px}a{color:var(--green)}
+  .savebar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .btn{background:var(--green);color:#fff;border:none;padding:11px 18px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+  @media(prefers-color-scheme:dark){.btn{color:#08130c}}
+  .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="crisis"><div class="wrap">
+  <b>If you're in crisis</b> — you deserve real support now.
+  <span>Call or text <a href="tel:988">988</a> (US Suicide &amp; Crisis Lifeline) · text <b>HOME</b> to <b>741741</b> · outside the US: <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a> · emergencies: 911.</span>
+</div></div>
+<div class="wrap">
+  <header>
+    <h1>Sounding Board</h1>
+    <p class="lede">A quiet, private place to think something through — untangle a hard moment, name what you're feeling, and steady yourself. Guided by the kinds of questions a good listener would ask.</p>
+  </header>
+  <div class="note"><b>What this is and isn't.</b> This is a self-guided journaling tool — a companion for the space between. It is <b>not therapy</b>, not a therapist, and not a substitute for professional care. If things feel heavy or persistent, talking to a real person (a counselor, doctor, or someone you trust) is the strong move, not the weak one. Everything here stays on your device — nothing is saved unless you choose to, and nothing is ever sent anywhere.</p></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-t="untangle">Untangle a moment</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="feel">Name the feeling</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="ground">Steady myself now</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="good">What's going right</button>
+  </div>
+
+  <!-- UNTANGLE (CBT-style, non-clinical) -->
+  <section class="panel on" id="untangle">
+    <p class="q">A gentle walk-through when a thought is looping. Take it one box at a time — there are no wrong answers.</p>
+    <label>What happened? <span class="q">Just the facts, like a camera saw it.</span></label><textarea data-j></textarea>
+    <label>What went through your mind? <span class="q">The thought, in its own words.</span></label><textarea data-j></textarea>
+    <label>How did that feel — and where did you notice it in your body?</label><textarea data-j></textarea>
+    <label>If a good friend told you this exact thing, what would you say to them?</label><textarea data-j></textarea>
+    <label>What's one kinder or truer way to hold this? <span class="q">Not fake-positive — just fairer.</span></label><textarea data-j></textarea>
+    <label>One small, doable next step <span class="q">(even "rest tonight" counts)</span></label><textarea data-j></textarea>
+    <div class="savebar"><button class="btn" data-save>Save privately to this device</button><button class="btn ghost" data-clear>Clear</button></div>
+    <p class="q" id="untangle-msg"></p>
+  </section>
+
+  <!-- FEELINGS -->
+  <section class="panel" id="feel">
+    <p class="q">Sometimes naming it takes the edge off. Tap what fits — you can pick a few.</p>
+    <div class="chips" id="feelchips"></div>
+    <label>Under that, what might it be pointing to? <span class="q">A need, a fear, something that matters to you.</span></label><textarea data-j></textarea>
+    <div class="savebar"><button class="btn" data-save>Save privately</button><button class="btn ghost" data-clear>Clear</button></div>
+    <p class="q" id="feel-msg"></p>
+  </section>
+
+  <!-- GROUNDING -->
+  <section class="panel" id="ground">
+    <p class="q">If your mind is racing, come back to your body for a minute.</p>
+    <div class="ground"><b>Box breathing</b> — breathe in 4 · hold 4 · out 4 · hold 4. <button class="btn ghost" id="breathe">Start a round</button> <span id="breathe-step" class="step" style="display:none"></span></div>
+    <div class="ground"><b>5-4-3-2-1</b> — name <b>5</b> things you can see · <b>4</b> you can feel · <b>3</b> you can hear · <b>2</b> you can smell · <b>1</b> you can taste. Say them slowly, out loud if you can.</div>
+    <div class="ground"><b>Feet on the floor</b> — press both feet down. Feel the ground hold you. You are here, and this moment is survivable.</div>
+  </section>
+
+  <!-- GOOD -->
+  <section class="panel" id="good">
+    <p class="q">On heavy days the good stuff gets crowded out. Three small true things — they count even when they're tiny.</p>
+    <label>One thing that went okay today</label><textarea data-j></textarea>
+    <label>One person or thing you're glad exists</label><textarea data-j></textarea>
+    <label>One thing you handled, even a little</label><textarea data-j></textarea>
+    <div class="savebar"><button class="btn" data-save>Save privately</button><button class="btn ghost" data-clear>Clear</button></div>
+    <p class="q" id="good-msg"></p>
+  </section>
+
+  <footer>Free and private. Built by Mick Hume. This tool offers reflection and coping supports; it does not provide medical or mental-health advice. In a crisis, please use the resources at the top of this page.</footer>
+</div>
+<script>
+const tabs=[...document.querySelectorAll('.tab')];
+tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.setAttribute('aria-selected',x===t));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id===t.dataset.t));});
+// feelings wheel
+const feelings=["Anxious","Overwhelmed","Sad","Lonely","Angry","Frustrated","Ashamed","Numb","Tired","Scared","Hurt","Restless","Hopeful","Relieved","Calm","Grateful"];
+const fc=document.getElementById('feelchips');
+feelings.forEach(f=>{const c=document.createElement('button');c.className='chip';c.textContent=f;c.onclick=()=>c.classList.toggle('on');fc.appendChild(c);});
+// save/clear per panel (localStorage, device-only, opt-in)
+function panelText(panel){return [...panel.querySelectorAll('[data-j]')].map(t=>t.value).join('\n');}
+document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>{
+  const panel=b.closest('.panel');const key='sb-'+panel.id;
+  try{localStorage.setItem(key,JSON.stringify([...panel.querySelectorAll('[data-j]')].map(t=>t.value)));
+    panel.querySelector('.q[id$="-msg"]').textContent="Saved on this device only. Clearing your browser data removes it.";}
+  catch(e){panel.querySelector('.q[id$="-msg"]').textContent="Couldn't save (private mode?) — your writing is still here on screen.";}
+});
+document.querySelectorAll('[data-clear]').forEach(b=>b.onclick=()=>{const panel=b.closest('.panel');panel.querySelectorAll('[data-j]').forEach(t=>t.value='');try{localStorage.removeItem('sb-'+panel.id);}catch(e){}panel.querySelector('.q[id$="-msg"]').textContent="Cleared.";});
+// restore saved
+document.querySelectorAll('.panel').forEach(panel=>{try{const s=JSON.parse(localStorage.getItem('sb-'+panel.id)||'null');if(s){[...panel.querySelectorAll('[data-j]')].forEach((t,i)=>{if(s[i]!=null)t.value=s[i];});}}catch(e){}});
+// box breathing
+const steps=["Breathe in… 4","Hold… 4","Breathe out… 4","Hold… 4"];
+document.getElementById('breathe').onclick=()=>{const el=document.getElementById('breathe-step');el.style.display='inline-block';let i=0,n=0;el.textContent=steps[0];const iv=setInterval(()=>{i=(i+1)%4;if(i===0)n++;el.textContent=steps[i];if(n>=2&&i===3){clearInterval(iv);setTimeout(()=>{el.textContent="Nicely done.";},1000);}},4000);};
+</script>
+</body>
+</html>
