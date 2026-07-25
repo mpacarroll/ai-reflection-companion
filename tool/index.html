@@ -36,6 +36,19 @@
   .btn{background:var(--green);color:#fff;border:none;padding:11px 18px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
   @media(prefers-color-scheme:dark){.btn{color:#08130c}}
   .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+
+  /* --- funnel CTA (shared across tools) --- */
+  .mc-cta{margin:34px 0 8px;padding:20px 22px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:12px}
+  .mc-cta h3{font-family:var(--serif);font-size:1.15rem;margin:0 0 4px;color:var(--green)}
+  .mc-cta p{margin:0 0 12px;color:var(--muted);font-size:.94rem}
+  .mc-form{display:flex;gap:8px;flex-wrap:wrap;margin:0}
+  .mc-form input[type=email]{flex:1;min-width:200px;padding:11px;border:1.5px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
+  .mc-form button{background:var(--green);color:#fff;border:none;padding:11px 18px;border-radius:9px;font:inherit;font-weight:600;cursor:pointer}
+  .mc-form button:hover{background:var(--green-deep)}
+  .mc-hp{position:absolute;left:-9999px;width:1px;height:1px}
+  .mc-msg{width:100%;margin:8px 0 0;font-size:.9rem;font-weight:600;color:var(--green)}
+  .mc-more{margin:12px 0 0;font-size:.9rem}
+  .mc-more a{color:var(--green);font-weight:600}
 </style>
 </head>
 <body>
@@ -97,6 +110,12 @@
     <p class="q" id="good-msg"></p>
   </section>
 
+
+  <section class="mc-cta">
+    <h3>More free tools</h3>
+    <p>Everything here is free and private. Nothing is for sale, and nothing here is tracked.</p>
+    <p class="mc-more"><a href="https://mpacarroll.github.io/ai-mick/">See all the free tools &rarr;</a></p>
+  </section>
   <footer>Free and private. Built by Mick Cairn. This tool offers reflection and coping supports; it does not provide medical or mental-health advice. In a crisis, please use the resources at the top of this page.</footer>
 </div>
 <script>
