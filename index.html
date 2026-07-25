@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sounding Board — Mick's Fair Dinkum AI</title>
+<meta name="description" content="A private space to think something through.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f5a34'/><text x='16' y='24' font-family='Georgia,serif' font-size='22' font-weight='700' fill='%23c99a2e' text-anchor='middle'>M</text></svg>">
+<style>
+  :root{--green:#0f5a34;--green-deep:#0a3d24;--gold:#a9780a;--gold-bright:#c99a2e;
+    --paper:#faf8f0;--card:#fff;--ink:#182219;--muted:#586459;--line:#e4dfce;
+    --serif:"Iowan Old Style",Palatino,Georgia,serif;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    color-scheme:light dark}
+  @media(prefers-color-scheme:dark){:root{--green:#3fa06a;--green-deep:#0c3b23;--gold:#d7b552;
+    --gold-bright:#e6c766;--paper:#141c16;--card:#1a241d;--ink:#e9efe9;--muted:#9aab9e;--line:#2a362d}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);line-height:1.55}
+  .band{height:10px;background:linear-gradient(90deg,var(--green),var(--gold-bright),var(--green))}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px 60px}
+  header{padding:40px 0 6px}
+  .logo{display:block;margin:0 0 10px}
+  h1{font-family:var(--serif);font-size:clamp(1.9rem,5vw,2.6rem);margin:.1em 0;color:var(--green-deep)}
+  @media(prefers-color-scheme:dark){h1{color:#d7e6db}}
+  .lede{color:var(--muted);font-size:1.13rem;max-width:52ch}
+  .blurb{margin:18px 0 24px}
+  .cta{display:inline-block;background:var(--green);color:#fff;text-decoration:none;
+    padding:14px 24px;border-radius:10px;font-weight:600;font-size:1.05rem}
+  @media(prefers-color-scheme:dark){.cta{color:#08130c}}
+  .cta:hover{background:var(--green-deep)}
+  .free{color:var(--muted);font-size:.9rem;margin-top:10px}
+  h2{font-family:var(--serif);font-size:1.25rem;margin:38px 0 6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .card{display:block;text-decoration:none;color:var(--ink);background:var(--card);
+    border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;font-weight:600}
+  .card:hover{border-left-color:var(--green)}
+  .mc-cta{margin:34px 0 8px;padding:20px 22px;background:var(--card);border:1px solid var(--line);
+    border-left:3px solid var(--gold);border-radius:12px}
+  .mc-cta h3{font-family:var(--serif);font-size:1.15rem;margin:0 0 4px;color:var(--green)}
+  .mc-cta p{margin:0 0 12px;color:var(--muted);font-size:.94rem}
+  .mc-form{display:flex;gap:8px;flex-wrap:wrap;margin:0}
+  .mc-form input[type=email]{flex:1;min-width:200px;padding:11px;border:1.5px solid var(--line);
+    border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
+  .mc-form button{background:var(--green);color:#fff;border:none;padding:11px 18px;border-radius:9px;
+    font:inherit;font-weight:600;cursor:pointer}
+  @media(prefers-color-scheme:dark){.mc-form button{color:#08130c}}
+  .mc-hp{position:absolute;left:-9999px;width:1px;height:1px}
+  .mc-msg{width:100%;margin:8px 0 0;font-size:.9rem;font-weight:600;color:var(--green)}
+  .mc-more{margin:12px 0 0;font-size:.9rem}
+  .mc-more a{color:var(--green);font-weight:600}
+  footer{color:var(--muted);font-size:.85rem;padding-top:30px;border-top:1px solid var(--line);margin-top:34px}
+  footer a{color:var(--green)}
+</style>
+</head>
+<body>
+<div class="band"></div>
+<div class="wrap">
+  <header>
+    <svg class="logo" viewBox="0 0 160 100" width="120" height="75" role="img" aria-label="M — Fair Dinkum AI">
+      <text x="80" y="54" font-family="var(--serif)" font-size="60" font-weight="700" fill="var(--green)" text-anchor="middle">M</text>
+      <line x1="59" y1="66" x2="101" y2="66" stroke="var(--green)" stroke-width="3.4" stroke-linecap="round"/>
+      <text x="49" y="90" font-family="var(--serif)" font-size="12" font-weight="700" fill="var(--gold-bright)" text-anchor="start">&gt;</text>
+      <text x="60" y="90" font-family="var(--serif)" font-size="14" font-weight="700" fill="var(--green)" text-anchor="start" textLength="43" lengthAdjust="spacing">FDAI</text>
+    </svg>
+    <h1>Sounding Board</h1>
+    <p class="lede">A private space to think something through.</p>
+  </header>
+
+  <p class="blurb">For when you need to work out what you actually think. Nothing is stored on a server, nothing is tracked, and nothing here is for sale. It is a reflection aid, not medical or mental-health advice.</p>
+  <a class="cta" href="tool/">Open the Sounding Board</a>
+  <p class="free">Free. No sign-up needed to use it, and nothing to install.</p>
+
+  <section class="mc-cta">
+    <h3>Free, private, and not for sale</h3>
+    <p>Nothing here is tracked, stored on a server, or monetised. It stays that way.</p>
+  </section>
+
+  <h2>The rest of the free tools</h2>
+  <div class="grid">
+    <a class="card" href="https://mpacarroll.github.io/ai-foundations/tool/">Prompt Helper</a>
+    <a class="card" href="https://mpacarroll.github.io/ai-career-coach/tool/">Job Coach</a>
+    <a class="card" href="https://mpacarroll.github.io/ai-negotiation-coach/tool/">The Negotiation Room</a>
+    <a class="card" href="https://mpacarroll.github.io/ai-travel-planner/tool/">Trip Planner</a>
+    <a class="card" href="https://mpacarroll.github.io/ai-for-real-life/tool/">Keep in Touch</a>
+  </div>
+
+  <footer>
+    Made by Mick Cairn. Free tools, plain-language AI, no hype.
+    <a href="https://mpacarroll.github.io/ai-mick/">See everything &rarr;</a>
+  </footer>
+</div>
+
+</body>
+</html>
