@@ -421,3 +421,196 @@ test('keyboard: an entry can be opened and a theme toggled without a mouse', asy
   assert.deepEqual(j.entries.find(e => e.id === 'sample-6').themeIds, ['sample-t-sleep']);
   await context.close();
 });
+
+// ---------- passphrase lock ----------
+const PASS = 'quiet harbor lantern';
+const stored = page => page.evaluate(() => localStorage.getItem('sb-journal-v1'));
+async function turnOnLock(page, pass = PASS) {
+  await toJournal(page, 'data');
+  await page.fill('#lock-new', pass);
+  await page.fill('#lock-confirm', pass);
+  await page.click('#lock-on');
+  await page.waitForFunction(() => window.SoundingBoard.lockEnabled && /now locked/.test(document.querySelector('#j-notices').textContent));
+  await page.evaluate(() => window.SoundingBoard.saved());
+}
+async function unlock(page, pass = PASS) {
+  await page.fill('#unlock-pass', pass);
+  await page.click('#unlock-go');
+}
+
+test('lock: turn on, nothing readable is stored, reload asks for the passphrase, wrong one refused', async () => {
+  const { context, page, errors, requests } = await open();
+  await loadSample(page);
+  await page.fill('#lock-new', 'short');
+  await page.fill('#lock-confirm', 'short');
+  await page.click('#lock-on');
+  assert.match(await page.textContent('#lock-msg'), /at least 8/);
+  await page.fill('#lock-new', PASS);
+  await page.fill('#lock-confirm', PASS + 'x');
+  await page.click('#lock-on');
+  assert.match(await page.textContent('#lock-msg'), /do not match/);
+  await turnOnLock(page);
+  const raw = await stored(page);
+  assert.equal(JSON.parse(raw).kind, 'sounding-board-locked');
+  for (const word of ['quarterly', 'sister', 'Overwhelmed', PASS]) assert.equal(raw.includes(word), false, word + ' is not stored readably');
+
+  await page.reload();
+  await page.click('.tab[data-t="journal"]');
+  assert.equal(await page.evaluate(() => window.SoundingBoard.locked), true);
+  assert.equal(await page.isVisible('.jnav'), false, 'journal sections are hidden while locked');
+  assert.equal(await page.isVisible('#unlock-pass'), true);
+  assert.equal(await page.isVisible('.crisis'), true, 'crisis banner stays visible');
+  assert.equal((await journal(page)).entries.length, 0, 'nothing readable in memory before unlocking');
+  await shot(page, 'lock-closed');
+  await unlock(page, 'wrong passphrase');
+  await page.waitForFunction(() => /did not open/.test(document.querySelector('#unlock-msg').textContent));
+  await unlock(page);
+  await page.waitForFunction(() => !window.SoundingBoard.locked);
+  assert.equal((await journal(page)).entries.length, 9);
+  assert.equal(await page.isVisible('.jnav'), true);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(requests, [], 'no network requests');
+  await context.close();
+});
+
+test('lock: saving while open stays locked; Lock now closes it; a save while locked keeps the writing', async () => {
+  const { context, page } = await open();
+  await turnOnLock(page);
+  await page.click('.tab[data-t="untangle"]');
+  await page.fill('#f-happened', 'Wrote this after locking');
+  await page.click('#untangle [data-save]');
+  await page.evaluate(() => window.SoundingBoard.saved());
+  assert.equal((await stored(page)).includes('after locking'), false);
+  await toJournal(page, 'data');
+  await page.click('#lock-now');
+  await page.waitForFunction(() => window.SoundingBoard.locked);
+  assert.equal((await journal(page)).entries.length, 0);
+  await page.click('.tab[data-t="untangle"]');
+  await page.fill('#f-happened', 'Written while locked');
+  await page.click('#untangle [data-save]');
+  assert.match(await page.textContent('#untangle-msg'), /journal is locked/);
+  assert.equal(await page.inputValue('#f-happened'), 'Written while locked', 'nothing is cleared');
+  await page.click('#untangle-msg >> text=Unlock to save it');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'unlock-pass');
+  await unlock(page);
+  await page.waitForFunction(() => !window.SoundingBoard.locked);
+  await page.click('.tab[data-t="untangle"]');
+  await page.click('#untangle [data-save]');
+  await page.evaluate(() => window.SoundingBoard.saved());
+  await page.reload();
+  await page.click('.tab[data-t="journal"]');
+  await unlock(page);
+  await page.waitForFunction(() => !window.SoundingBoard.locked);
+  const texts = (await journal(page)).entries.map(e => e.fields.happened).sort();
+  assert.deepEqual(texts, ['Written while locked', 'Wrote this after locking']);
+  await context.close();
+});
+
+test('lock: change passphrase needs the current one; removing the lock stores plain data again', async () => {
+  const { context, page } = await open();
+  await page.fill('#f-happened', 'Kept through every change');
+  await page.click('#untangle [data-save]');
+  await turnOnLock(page);
+  await page.click('summary >> text=Change passphrase');
+  await page.fill('#lock-current', 'not it at all');
+  await page.fill('#lock-change-new', 'brand new passphrase');
+  await page.fill('#lock-change-confirm', 'brand new passphrase');
+  await page.click('#lock-change');
+  await page.waitForFunction(() => /not right, so nothing was changed/.test(document.querySelector('#lock-msg').textContent));
+  await page.fill('#lock-current', PASS);
+  await page.click('#lock-change');
+  await page.waitForFunction(() => /Passphrase changed/.test(document.querySelector('#j-notices').textContent));
+  await page.evaluate(() => window.SoundingBoard.saved());
+  await page.reload();
+  await page.click('.tab[data-t="journal"]');
+  await unlock(page, PASS);
+  await page.waitForFunction(() => /did not open/.test(document.querySelector('#unlock-msg').textContent));
+  await unlock(page, 'brand new passphrase');
+  await page.waitForFunction(() => !window.SoundingBoard.locked);
+  await page.click('[data-view="data"]');
+  await page.click('summary >> text=Remove the lock');
+  await page.fill('#lock-off-pass', 'brand new passphrase');
+  await page.click('#lock-off');
+  await page.waitForFunction(() => !window.SoundingBoard.lockEnabled);
+  await page.evaluate(() => window.SoundingBoard.saved());
+  assert.match(await stored(page), /Kept through every change/);
+  await page.reload();
+  assert.equal((await journal(page)).entries.length, 1);
+  await context.close();
+});
+
+test('lock: a locked backup imports into a fresh browser only with its passphrase', async () => {
+  const a = await open();
+  await loadSample(a.page);
+  await turnOnLock(a.page);
+  const [dl] = await Promise.all([a.page.waitForEvent('download'), a.page.click('#ex-locked')]);
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sb-')), dl.suggestedFilename());
+  await dl.saveAs(file);
+  assert.equal(fs.readFileSync(file, 'utf8').includes('quarterly'), false);
+  await a.context.close();
+
+  const b = await open();
+  await toJournal(b.page, 'data');
+  await b.page.setInputFiles('#im-file', file);
+  await b.page.waitForSelector('#im-pass');
+  assert.match(await b.page.textContent('#im-msg'), /backup is locked/);
+  await b.page.fill('#im-pass', 'nope nope nope');
+  await b.page.click('#im-unlock');
+  await b.page.waitForFunction(() => /did not open/.test(document.querySelector('#im-msg').textContent));
+  await b.page.fill('#im-pass', PASS);
+  await b.page.click('#im-unlock');
+  await b.page.waitForFunction(() => /Imported 9 entries/.test(document.querySelector('#im-msg').textContent));
+  assert.equal((await journal(b.page)).entries.length, 9);
+  assert.equal(await b.page.evaluate(() => window.SoundingBoard.lockEnabled), false, 'importing does not lock the new browser');
+  await b.context.close();
+});
+
+test('lock: closes itself after the chosen idle time', async () => {
+  const { context, page } = await open();
+  await page.clock.install();
+  await page.reload();
+  await toJournal(page, 'data');
+  await page.fill('#lock-new', PASS);
+  await page.fill('#lock-confirm', PASS);
+  await page.selectOption('#lock-auto', '5');
+  await page.click('#lock-on');
+  await page.waitForFunction(() => window.SoundingBoard.lockEnabled && !window.SoundingBoard.locked);
+  await page.clock.runFor(4 * 60000);
+  assert.equal(await page.evaluate(() => window.SoundingBoard.locked), false, 'still open before 5 minutes');
+  await page.clock.runFor(90000);
+  await page.waitForFunction(() => window.SoundingBoard.locked);
+  assert.match(await page.textContent('#j-notices'), /Locked after 5 minutes without use/);
+  await context.close();
+});
+
+test('lock: locking in one tab closes the journal in another; saves sync between open tabs', async () => {
+  const { context, page: a } = await open();
+  const b = await context.newPage();
+  await b.goto(PAGE);
+  await turnOnLock(a);
+  await b.waitForFunction(() => window.SoundingBoard.locked);
+  await b.click('.tab[data-t="journal"]');
+  assert.match(await b.textContent('#j-notices'), /locked or its passphrase was changed in another tab/);
+  await unlock(b);
+  await b.waitForFunction(() => !window.SoundingBoard.locked);
+  await a.click('.tab[data-t="untangle"]');
+  await a.fill('#f-happened', 'From tab A');
+  await a.click('#untangle [data-save]');
+  await b.waitForFunction(() => window.SoundingBoard.journal.entries.length === 1);
+  await context.close();
+});
+
+test('lock: a forgotten passphrase can only be answered by deleting the locked journal', async () => {
+  const { context, page } = await open();
+  await page.fill('#f-happened', 'Gone for good');
+  await page.click('#untangle [data-save]');
+  await turnOnLock(page);
+  await page.reload();
+  await page.click('.tab[data-t="journal"]');
+  await page.click('#wipe');
+  await page.click('#wipe-yes');
+  await page.waitForFunction(() => !window.SoundingBoard.lockEnabled);
+  assert.equal(await stored(page), null);
+  assert.equal(await page.isVisible('.jnav'), true);
+  await context.close();
+});

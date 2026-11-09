@@ -9,6 +9,7 @@
 (function () {
   'use strict';
   const J = window.SBJournal;
+  const L = window.SBLock;
   const now = () => Date.now();
 
   // ---------- tiny DOM helper ----------
@@ -54,16 +55,77 @@
     reviewDrafts: {},
     confirmWipe: false,
     lastSaved: null,
-    saveError: null
+    saveError: null,
+    // Passphrase lock. enabled: the stored journal is locked. keyInfo: the key, in memory
+    // only, while this tab has it open. envelope: the last locked save this tab knows of.
+    lock: {
+      enabled: !!loaded.locked,
+      envelope: loaded.locked || null,
+      keyInfo: null,
+      autoLock: loaded.locked ? L.autoLockMinutes(loaded.locked) : L.DEFAULT_AUTO_LOCK,
+      busy: false
+    },
+    importLocked: null,
+    lastActivity: Date.now()
   };
+  const isClosed = () => state.lock.enabled && !state.lock.keyInfo;
 
-  function commit(journal) {
-    state.journal = journal;
-    if (state.persistent) {
+  // Every write to storage goes through one queue, so a slow locked save can never land
+  // after a later one (for example after the lock was removed).
+  let saveChain = Promise.resolve();
+  let pendingSaves = 0;
+  function enqueue(task) {
+    pendingSaves++;
+    const run = saveChain.then(task).catch(() => {
+      state.saveError = 'Could not lock and save this change. Your writing is still on screen; use Export to keep a copy.';
+    }).finally(() => { pendingSaves--; refreshStatus(); });
+    saveChain = run;
+    return run;
+  }
+  function persist(journal) {
+    if (!state.persistent) return Promise.resolve();
+    if (state.lock.enabled) {
+      const keyInfo = state.lock.keyInfo;
+      const autoLock = state.lock.autoLock;
+      if (!keyInfo) { state.saveError = 'Your journal is locked. Unlock it to save.'; return Promise.resolve(); }
+      return enqueue(async () => {
+        const env = await L.seal(journal, keyInfo, { autoLock, now: now() });
+        const r = J.save(storage, env);
+        if (r.ok) { state.lock.envelope = env; state.lastSaved = now(); state.saveError = null; }
+        else state.saveError = r.error;
+      });
+    }
+    return enqueue(() => {
       const r = J.save(storage, journal);
       if (r.ok) { state.lastSaved = now(); state.saveError = null; }
       else state.saveError = r.error;
-    }
+    });
+  }
+  function refreshStatus() {
+    const el = $('#data-status');
+    if (el) el.textContent = statusText();
+  }
+
+  function commit(journal) {
+    state.journal = journal;
+    persist(journal);
+    renderAll();
+  }
+
+  // Forget everything readable: the key, the journal and anything drafted from it.
+  function forgetOpenJournal() {
+    state.lock.keyInfo = null;
+    state.journal = J.emptyJournal();
+    state.expanded.clear();
+    state.editing = null;
+    state.undo = null;
+    state.reviewDrafts = {};
+    state.confirmWipe = false;
+  }
+  async function lockNow(message) {
+    await saveChain;
+    forgetOpenJournal();
+    state.notices = message ? [message] : [];
     renderAll();
   }
 
@@ -105,6 +167,10 @@
     b.onclick = () => {
       const panel = b.closest('.panel');
       const mode = panel.dataset.mode;
+      if (isClosed()) {
+        panelMsg(panel, 'Your journal is locked. What you wrote is still here. ', h('button', { type: 'button', class: 'linkish', text: 'Unlock to save it', onclick: () => { showTab('journal'); const f = $('#unlock-pass'); if (f) f.focus(); } }));
+        return;
+      }
       const feelings = mode === 'feel' ? $$('#feelchips .chip[aria-pressed="true"]').map(c => c.textContent) : [];
       const r = J.addEntry(state.journal, { mode, fields: panelFields(panel), feelings, now: now() });
       if (r.error) { panelMsg(panel, r.error); return; }
@@ -485,12 +551,9 @@
   // ---------- journal: your data ----------
   function renderData(box) {
     const j = state.journal;
-    const status = state.persistent
-      ? (state.saveError ? state.saveError : 'Your journal is saved in this browser on this device. It is never sent anywhere. Clearing this browser’s site data also removes it, so export a copy now and then.')
-      : 'This browser is not saving. Your journal lasts only while this tab is open. Export to keep a copy.';
     box.appendChild(h('div', { class: 'jcard' },
       h('h4', { text: 'Where your journal lives' }),
-      h('p', { id: 'data-status', text: status }),
+      h('p', { id: 'data-status', text: statusText() }),
       h('p', { class: 'q', id: 'data-counts', text: j.entries.length + (j.entries.length === 1 ? ' entry' : ' entries') + ', ' + j.themes.length + (j.themes.length === 1 ? ' theme' : ' themes') + (state.lastSaved ? '. Last saved ' + new Date(state.lastSaved).toLocaleTimeString() + '.' : '.') })));
 
     const filtered = J.filterEntries(j, state.filters);
@@ -501,7 +564,11 @@
       h('div', { class: 'savebar' },
         h('button', { type: 'button', class: 'btn', id: 'ex-json', text: 'Download backup (JSON)', onclick: () => download('sounding-board-backup-' + stamp() + '.json', J.exportJSON(j, now()), 'application/json') }),
         h('button', { type: 'button', class: 'btn ghost', id: 'ex-md', text: 'Download as text', onclick: () => download('sounding-board-journal-' + stamp() + '.md', J.exportMarkdown(j, now()), 'text/markdown') }),
-        filteredNote ? h('button', { type: 'button', class: 'btn ghost', id: 'ex-filtered', text: 'Download only filtered entries' + filteredNote, onclick: () => download('sounding-board-selection-' + stamp() + '.md', J.exportMarkdown(j, now(), { entryIds: filtered.map(e => e.id) }), 'text/markdown') }) : null)));
+        filteredNote ? h('button', { type: 'button', class: 'btn ghost', id: 'ex-filtered', text: 'Download only filtered entries' + filteredNote, onclick: () => download('sounding-board-selection-' + stamp() + '.md', J.exportMarkdown(j, now(), { entryIds: filtered.map(e => e.id) }), 'text/markdown') }) : null),
+      state.lock.enabled ? h('p', { class: 'q', text: 'The two downloads above are readable by anyone who opens the file. The locked backup below needs your passphrase, and can be imported here again with it.' }) : null,
+      state.lock.enabled ? h('div', { class: 'savebar' }, h('button', { type: 'button', class: 'btn ghost', id: 'ex-locked', text: 'Download locked backup', onclick: downloadLocked })) : null));
+
+    box.appendChild(lockCard());
 
     const file = h('input', { type: 'file', id: 'im-file', accept: 'application/json,.json' });
     const msg = h('p', { class: 'q', id: 'im-msg', 'aria-live': 'polite' });
@@ -513,18 +580,45 @@
       reader.onerror = () => { msg.textContent = 'Could not read that file.'; };
       reader.onload = () => {
         const p = J.parseImport(String(reader.result));
-        if (!p.ok) { msg.textContent = p.error; return; }
-        const m = J.mergeJournals(state.journal, p.journal);
-        commit(m.journal);
-        const out = $('#im-msg');
-        if (out) out.textContent = 'Imported ' + m.added + (m.added === 1 ? ' entry' : ' entries') + (m.skipped ? ', skipped ' + m.skipped + ' already here' : '') + (m.themesAdded ? ', added ' + m.themesAdded + ' theme' + (m.themesAdded === 1 ? '' : 's') : '') + '.' + (p.problems.length ? ' ' + p.problems.join(' ') : '');
+        if (p.locked) {
+          const bad = L.checkEnvelope(p.locked);
+          if (bad) { state.importLocked = null; msg.textContent = bad; return; }
+          state.importLocked = p.locked;
+          renderJournal();
+          const out = $('#im-msg'); if (out) out.textContent = p.error;
+          const pass = $('#im-pass'); if (pass) pass.focus();
+          return;
+        }
+        state.importLocked = null;
+        if (!p.ok) { renderJournal(); const out = $('#im-msg'); if (out) out.textContent = p.error; return; }
+        finishImport(p);
       };
       reader.readAsText(f);
     };
+    let lockedImport = null;
+    if (state.importLocked) {
+      const pass = h('input', { type: 'password', id: 'im-pass', autocomplete: 'off' });
+      const go = h('button', { type: 'button', class: 'btn', id: 'im-unlock', text: 'Open and import', onclick: async () => {
+        const env = state.importLocked;
+        go.disabled = true; go.textContent = 'Opening...';
+        const r = await L.unlock(env, pass.value);
+        go.disabled = false; go.textContent = 'Open and import';
+        if (!r.ok) { const out = $('#im-msg'); if (out) out.textContent = r.error; return; }
+        state.importLocked = null;
+        const p = J.parseImport(JSON.stringify(r.raw));
+        if (!p.ok) { renderJournal(); const out = $('#im-msg'); if (out) out.textContent = p.error; return; }
+        finishImport(p);
+      } });
+      pass.addEventListener('keydown', ev => { if (ev.key === 'Enter') go.click(); });
+      lockedImport = h('div', {},
+        h('label', { for: 'im-pass', text: 'Passphrase for this locked backup' }), pass,
+        h('div', { class: 'savebar' }, go,
+          h('button', { type: 'button', class: 'btn ghost', text: 'Cancel', onclick: () => { state.importLocked = null; renderJournal(); } })));
+    }
     box.appendChild(h('div', { class: 'jcard' },
       h('h4', { text: 'Import a backup' }),
-      h('p', { class: 'q', text: 'Adds entries from a backup file. Entries you already have are left as they are.' }),
-      h('label', { for: 'im-file', text: 'Choose a backup file' }), file, msg));
+      h('p', { class: 'q', text: 'Adds entries from a backup file, locked or not. Entries you already have are left as they are.' }),
+      h('label', { for: 'im-file', text: 'Choose a backup file' }), file, lockedImport, msg));
 
     const hasSample = j.entries.some(e => e.sample);
     box.appendChild(h('div', { class: 'jcard' },
@@ -553,16 +647,199 @@
     } else {
       wipeBox.appendChild(h('p', { class: 'q', text: 'This removes every entry, theme and review from this device. It cannot be undone. Download a backup first if you might want it later.' }));
       wipeBox.appendChild(h('button', { type: 'button', class: 'btn danger', id: 'wipe-yes', text: 'Yes, delete everything', onclick: () => {
-        J.wipe(storage);
-        state.confirmWipe = false; state.undo = null; state.expanded.clear(); state.reviewDrafts = {};
-        state.journal = J.emptyJournal();
-        state.notices = ['Everything was deleted from this device.'];
-        renderAll();
+        wipeAll();
       } }));
       wipeBox.appendChild(h('button', { type: 'button', class: 'btn ghost', text: 'Keep my journal', onclick: () => { state.confirmWipe = false; renderJournal(); } }));
     }
     box.appendChild(h('div', { class: 'jcard' }, h('h4', { text: 'Delete' }), h('p', { class: 'q', text: 'Delete single entries from the entry itself. This removes all of it.' }), wipeBox));
   }
+
+  // ---------- journal: passphrase lock ----------
+  function statusText() {
+    if (!state.persistent) return 'This browser is not saving. Your journal lasts only while this tab is open. Export to keep a copy.';
+    if (state.saveError) return state.saveError;
+    if (state.lock.enabled) return 'Your journal is locked with a passphrase and saved in this browser on this device. It is never sent anywhere, and the passphrase is never stored. Clearing this browser’s site data also removes it, so download a locked backup now and then.';
+    return 'Your journal is saved in this browser on this device. It is never sent anywhere. Clearing this browser’s site data also removes it, so export a copy now and then.';
+  }
+
+  function downloadLocked() {
+    const env = state.lock.envelope;
+    if (env) download('sounding-board-locked-backup-' + stamp() + '.json', JSON.stringify(env, null, 2), 'application/json');
+  }
+
+  function finishImport(p) {
+    const m = J.mergeJournals(state.journal, p.journal);
+    commit(m.journal);
+    const out = $('#im-msg');
+    if (out) out.textContent = 'Imported ' + m.added + (m.added === 1 ? ' entry' : ' entries') + (m.skipped ? ', skipped ' + m.skipped + ' already here' : '') + (m.themesAdded ? ', added ' + m.themesAdded + ' theme' + (m.themesAdded === 1 ? '' : 's') : '') + '.' + (p.problems.length ? ' ' + p.problems.join(' ') : '');
+  }
+
+  async function wipeAll() {
+    await saveChain;
+    J.wipe(storage);
+    forgetOpenJournal();
+    state.lock.enabled = false;
+    state.lock.envelope = null;
+    state.lock.autoLock = L.DEFAULT_AUTO_LOCK;
+    state.importLocked = null;
+    state.saveError = null;
+    state.notices = ['Everything was deleted from this device.'];
+    renderAll();
+  }
+
+  function addKids(el, ...kids) {
+    kids.flat(Infinity).forEach(k => { if (k) el.appendChild(typeof k === 'string' ? document.createTextNode(k) : k); });
+  }
+  function passField(id, label, autocomplete) {
+    const input = h('input', { type: 'password', id, autocomplete });
+    return { input, nodes: [h('label', { for: id, text: label }), input] };
+  }
+  function autoLockSelect(id) {
+    const sel = h('select', { id }, L.AUTO_LOCK_CHOICES.map(c => h('option', { value: String(c.minutes), selected: c.minutes === state.lock.autoLock, text: c.label })));
+    return { sel, nodes: [h('label', { for: id, text: 'Lock again automatically' }), sel] };
+  }
+  async function busy(button, label, task) {
+    const before = button.textContent;
+    button.disabled = true; button.textContent = label;
+    try { return await task(); } finally { if (button.isConnected) { button.disabled = false; button.textContent = before; } }
+  }
+
+  // Shown instead of the journal while it is locked in this tab.
+  function renderLocked(box) {
+    const pass = passField('unlock-pass', 'Passphrase', 'current-password');
+    const msg = h('p', { class: 'q', id: 'unlock-msg', 'aria-live': 'polite' });
+    const go = h('button', { type: 'button', class: 'btn', id: 'unlock-go', text: 'Unlock', onclick: () => busy(go, 'Opening...', async () => {
+      const env = state.lock.envelope;
+      const r = await L.unlock(env, pass.input.value);
+      if (!r.ok) { msg.textContent = r.error; pass.input.select(); return; }
+      if (state.lock.envelope !== env) { msg.textContent = 'The journal changed in another tab while it was opening. Try again.'; return; }
+      const n = J.normalize(r.raw);
+      if (n.tooNew) { msg.textContent = n.problems[0]; return; }
+      state.lock.keyInfo = r.keyInfo;
+      state.lock.autoLock = L.autoLockMinutes(env);
+      state.lastActivity = Date.now();
+      state.journal = n.journal;
+      state.notices = n.problems.slice();
+      state.view = 'entries';
+      renderAll();
+      const first = $('[data-view="entries"]', jroot); if (first) first.focus();
+    }) });
+    pass.input.addEventListener('keydown', ev => { if (ev.key === 'Enter') go.click(); });
+    box.appendChild(h('div', { class: 'jcard lockbox' },
+      h('h4', { text: 'Your journal is locked' }),
+      h('p', { class: 'q', text: 'Type your passphrase to open it on this device. The passphrase is never stored or sent anywhere.' }),
+      pass.nodes, h('div', { class: 'savebar' }, go), msg));
+
+    const forgot = h('div', { class: 'savebar' });
+    if (!state.confirmWipe) {
+      forgot.appendChild(h('button', { type: 'button', class: 'btn ghost danger', id: 'wipe', text: 'Delete the locked journal', onclick: () => { state.confirmWipe = true; renderJournal(); $('#wipe-yes').focus(); } }));
+    } else {
+      forgot.appendChild(h('p', { class: 'q', text: 'This removes the locked journal from this device for good. It cannot be undone, and nobody can recover it later.' }));
+      forgot.appendChild(h('button', { type: 'button', class: 'btn danger', id: 'wipe-yes', text: 'Yes, delete the locked journal', onclick: wipeAll }));
+      forgot.appendChild(h('button', { type: 'button', class: 'btn ghost', text: 'Keep it', onclick: () => { state.confirmWipe = false; renderJournal(); } }));
+    }
+    box.appendChild(h('div', { class: 'jcard' },
+      h('h4', { text: 'Forgot your passphrase?' }),
+      h('p', { class: 'q', text: 'It cannot be recovered or reset. That is what keeps the journal private. You can still download the locked backup, or delete the locked journal and start fresh.' }),
+      h('div', { class: 'savebar' }, h('button', { type: 'button', class: 'btn ghost', id: 'ex-locked', text: 'Download locked backup', onclick: downloadLocked })),
+      forgot));
+  }
+
+  // The lock settings card in Your data.
+  function lockCard() {
+    const card = h('div', { class: 'jcard', id: 'lock-card' }, h('h4', { text: 'Passphrase lock' }));
+    if (!state.persistent) {
+      card.appendChild(h('p', { class: 'q', text: 'The lock needs this browser to save, and it is not saving right now.' }));
+      return card;
+    }
+    if (!L.available()) {
+      card.appendChild(h('p', { class: 'q', text: 'This browser cannot lock the journal. Locking needs a secure page (https) and a current browser.' }));
+      return card;
+    }
+    const msg = h('p', { class: 'q', id: 'lock-msg', 'aria-live': 'polite' });
+
+    if (!state.lock.enabled) {
+      const p1 = passField('lock-new', 'New passphrase', 'new-password');
+      const p2 = passField('lock-confirm', 'Type it again', 'new-password');
+      const al = autoLockSelect('lock-auto');
+      const go = h('button', { type: 'button', class: 'btn', id: 'lock-on', text: 'Turn on the lock', onclick: () => {
+        const bad = L.checkNewPassphrase(p1.input.value, p2.input.value);
+        if (bad) { msg.textContent = bad; return; }
+        return busy(go, 'Locking...', async () => {
+          const keyInfo = await L.deriveKey(p1.input.value);
+          state.lock.enabled = true;
+          state.lock.keyInfo = keyInfo;
+          state.lock.autoLock = Number(al.sel.value);
+          state.lastActivity = Date.now();
+          await persist(state.journal);
+          state.notices = state.saveError ? [state.saveError] : ['Your journal is now locked with your passphrase. Download a locked backup and keep the passphrase somewhere safe.'];
+          renderAll();
+        });
+      } });
+      addKids(card, 
+        h('p', { class: 'q', text: 'Anyone who can use this browser can open My journal. A passphrase lock scrambles the journal on this device, so it can only be read after the passphrase is typed. Your writing still never leaves the device.' }),
+        h('p', { class: 'notice', text: 'If you forget the passphrase, nobody can open the journal again, including the people who made this page. Download a backup first if you want a safety copy, and keep it somewhere private.' }),
+        p1.nodes, p2.nodes, al.nodes, h('div', { class: 'savebar' }, go), msg);
+      return card;
+    }
+
+    // Locked and open in this tab.
+    const al = autoLockSelect('lock-auto');
+    al.sel.onchange = () => {
+      state.lock.autoLock = Number(al.sel.value);
+      state.lastActivity = Date.now();
+      persist(state.journal).then(() => { const m = $('#lock-msg'); if (m) m.textContent = 'Saved.'; });
+    };
+    addKids(card, 
+      h('p', { class: 'q', text: 'On. The journal is locked on this device and open in this tab. Closing or reloading the page locks it again.' }),
+      h('div', { class: 'savebar' }, h('button', { type: 'button', class: 'btn', id: 'lock-now', text: 'Lock now', onclick: () => lockNow('Locked. Type your passphrase to open the journal again.') })),
+      al.nodes);
+
+    const cur = passField('lock-current', 'Current passphrase', 'current-password');
+    const n1 = passField('lock-change-new', 'New passphrase', 'new-password');
+    const n2 = passField('lock-change-confirm', 'Type the new one again', 'new-password');
+    const change = h('button', { type: 'button', class: 'btn ghost', id: 'lock-change', text: 'Change passphrase', onclick: () => {
+      const bad = L.checkNewPassphrase(n1.input.value, n2.input.value);
+      if (bad) { msg.textContent = bad; return; }
+      return busy(change, 'Changing...', async () => {
+        await saveChain;
+        const check = await L.unlock(state.lock.envelope, cur.input.value);
+        if (!check.ok) { msg.textContent = 'The current passphrase is not right, so nothing was changed.'; return; }
+        state.lock.keyInfo = await L.deriveKey(n1.input.value);
+        await persist(state.journal);
+        state.notices = state.saveError ? [state.saveError] : ['Passphrase changed. Locked backups made before now still open with the old one.'];
+        renderAll();
+      });
+    } });
+    card.appendChild(h('details', {}, h('summary', { text: 'Change passphrase' }), cur.nodes, n1.nodes, n2.nodes, h('div', { class: 'savebar' }, change)));
+
+    const off = passField('lock-off-pass', 'Current passphrase', 'current-password');
+    const remove = h('button', { type: 'button', class: 'btn ghost danger', id: 'lock-off', text: 'Remove the lock', onclick: () => busy(remove, 'Removing...', async () => {
+      await saveChain;
+      const check = await L.unlock(state.lock.envelope, off.input.value);
+      if (!check.ok) { msg.textContent = 'The passphrase is not right, so the lock is still on.'; return; }
+      state.lock.enabled = false;
+      state.lock.keyInfo = null;
+      state.lock.envelope = null;
+      await persist(state.journal);
+      state.notices = state.saveError ? [state.saveError] : ['The lock is off. Your journal is saved on this device without a passphrase.'];
+      renderAll();
+    }) });
+    card.appendChild(h('details', {}, h('summary', { text: 'Remove the lock' }),
+      h('p', { class: 'q', text: 'Your journal stays on this device, readable without a passphrase.' }), off.nodes, h('div', { class: 'savebar' }, remove)));
+    card.appendChild(msg);
+    return card;
+  }
+
+  // Lock again after the chosen time without use. Only taps and keys count as use.
+  ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { state.lastActivity = Date.now(); }, true));
+  setInterval(() => {
+    if (!state.lock.keyInfo || !state.lock.autoLock) return;
+    if (Date.now() - state.lastActivity >= state.lock.autoLock * 60000) {
+      lockNow('Locked after ' + (state.lock.autoLock === 60 ? '1 hour' : state.lock.autoLock + ' minutes') + ' without use. Type your passphrase to open the journal again.');
+    }
+  }, 15000);
+  window.addEventListener('beforeunload', ev => { if (pendingSaves > 0) { ev.preventDefault(); ev.returnValue = ''; } });
 
   // ---------- render ----------
   // Re-rendering replaces the journal's DOM, so remember which control had focus and put
@@ -590,6 +867,7 @@
     restoreFocus(key);
   }
   function renderJournalInner() {
+    $('.jnav', jroot).hidden = isClosed();
     $$('[data-view]', jroot).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === state.view)));
     const notices = $('#j-notices');
     notices.textContent = '';
@@ -597,7 +875,8 @@
     if (state.notices.length) notices.appendChild(h('button', { type: 'button', class: 'linkish', text: 'Dismiss', onclick: () => { state.notices = []; renderJournal(); } }));
     const box = $('#j-view');
     box.textContent = '';
-    views[state.view](box);
+    if (isClosed()) renderLocked(box);
+    else views[state.view](box);
   }
   function renderAll() {
     const c = $('#jcount');
@@ -607,25 +886,72 @@
 
   // Another tab of this page saved. Take its journal so this tab never saves a stale copy
   // over it (which would silently lose whatever the other tab wrote).
+  let syncChain = Promise.resolve();
   window.addEventListener('storage', ev => {
     if (!state.persistent || ev.storageArea !== storage) return;
-    if (ev.key === null) { state.journal = J.emptyJournal(); state.expanded.clear(); state.editing = null; state.undo = null; renderAll(); return; }
-    if (ev.key !== J.STORAGE_KEY) return;
-    let parsed = null;
-    try { parsed = ev.newValue ? JSON.parse(ev.newValue) : J.emptyJournal(); } catch (err) { return; }
-    const n = J.normalize(parsed);
-    if (n.tooNew) { state.persistent = false; state.notices = [n.problems[0] + ' Another tab saved it, so this tab stopped saving to protect it.']; renderAll(); return; }
-    state.journal = n.journal;
+    if (ev.key !== null && ev.key !== J.STORAGE_KEY) return;
+    syncChain = syncChain.then(() => applyOtherTab(ev.key === null ? null : ev.newValue)).catch(() => {});
+  });
+  function showOtherTab(journal) {
+    state.journal = journal;
     state.undo = null;
     // Do not rebuild the screen under someone mid-edit; their typing would be lost. Saving the
     // edit applies it to the fresh journal by id and re-renders then.
     if (state.editing) { $('#jcount').textContent = state.journal.entries.length ? String(state.journal.entries.length) : ''; return; }
     renderAll();
-  });
+  }
+  async function applyOtherTab(value) {
+    let parsed = null;
+    try { parsed = value ? JSON.parse(value) : null; } catch (err) { return; }
+    if (!parsed) {
+      // Deleted in another tab.
+      forgetOpenJournal();
+      state.lock.enabled = false; state.lock.envelope = null;
+      renderAll();
+      return;
+    }
+    if (L.isLocked(parsed)) {
+      if (state.lock.keyInfo) {
+        const r = await L.reopen(parsed, state.lock.keyInfo);
+        if (r.ok) {
+          const n = J.normalize(r.raw);
+          if (n.tooNew) return;
+          state.lock.envelope = parsed;
+          state.lock.autoLock = L.autoLockMinutes(parsed);
+          showOtherTab(n.journal);
+          return;
+        }
+      }
+      // Locked in another tab, or its passphrase changed there: close the journal here too.
+      const wasOpen = !!state.lock.keyInfo || !state.lock.enabled;
+      state.lock.enabled = true;
+      state.lock.envelope = parsed;
+      state.lock.autoLock = L.autoLockMinutes(parsed);
+      forgetOpenJournal();
+      if (wasOpen) state.notices = ['The journal was locked or its passphrase was changed in another tab. Type the passphrase to open it here.'];
+      renderAll();
+      return;
+    }
+    const n = J.normalize(parsed);
+    if (n.tooNew) { state.persistent = false; state.notices = [n.problems[0] + ' Another tab saved it, so this tab stopped saving to protect it.']; renderAll(); return; }
+    if (state.lock.enabled) {
+      // The lock was removed in another tab.
+      const wasClosed = isClosed();
+      state.lock.enabled = false; state.lock.keyInfo = null; state.lock.envelope = null;
+      if (wasClosed) state.notices = ['The lock was removed in another tab.'];
+    }
+    showOtherTab(n.journal);
+  }
 
   renderAll();
   if (state.notices.length || location.hash === '#journal') showTab('journal');
 
   // For tests and for anyone curious: read-only view of the current journal.
-  window.SoundingBoard = { get journal() { return JSON.parse(JSON.stringify(state.journal)); }, openEntry };
+  window.SoundingBoard = {
+    get journal() { return JSON.parse(JSON.stringify(state.journal)); },
+    get locked() { return isClosed(); },
+    get lockEnabled() { return state.lock.enabled; },
+    saved: () => saveChain,
+    openEntry
+  };
 })();

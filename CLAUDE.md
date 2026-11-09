@@ -49,3 +49,5 @@ In-flight task state is separate: it lives in `.claude/state/handoff.md`, writte
 - Corrupt storage is copied to `sb-journal-corrupt-<ms>` before anything else; a journal written by a newer schema is never overwritten. Legacy keys `sb-untangle`, `sb-feel`, `sb-good` migrate once.
 - All user text goes through `textContent` (the `h()` helper). Do not introduce `innerHTML` with user data.
 - Tests: `npm test` and `npm run test:e2e` (Playwright, file:// URL, asserts zero network requests). The PROFILE.md "Test commands: none" line in ai-instructions is now out of date.
+- Passphrase lock (`tool/lock.js`): the stored value under `sb-journal-v1` becomes `{kind: 'sounding-board-locked', version: 2, encrypted: true, kdf, cipher, autoLockMinutes, data}`. Version 2 is deliberate: older pages see "newer version" and refuse to save over it. Never write the key, passphrase or plaintext anywhere when the lock is on; all storage writes in `app.js` go through the `enqueue` chain so a slow seal cannot land after a later save.
+- Multi-tab: `app.js` listens to the `storage` event and adopts the other tab's journal; it never re-renders under an open edit form.
