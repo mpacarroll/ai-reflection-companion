@@ -14,16 +14,20 @@ Anything saved from the guided tabs lands in **My journal**, on the device only:
 - **Review**: a few questions picked from recent entries, each with "why this question" and links to its sources. Answers save as a review entry linked back to them.
 - **Your data**: download a JSON backup or a readable text (Markdown) file, import a backup (merges, no duplicates), load or remove a clearly labeled synthetic sample journal, and delete everything.
 
+- **Passphrase lock** (optional, in Your data): seals the journal on the device with AES-GCM under a key derived from the passphrase (PBKDF2-SHA-256, 600,000 iterations, the browser's own Web Crypto). Nothing readable stays in storage and the passphrase is never stored. Unlock screen, Lock now, auto-lock after 5, 15 or 60 minutes without use, change or remove the passphrase, and a locked backup that imports anywhere with its passphrase. A forgotten passphrase cannot be recovered; the only way forward is deleting the locked journal, and the page says so before the lock is turned on.
+
+Two open tabs stay in sync: each takes the other's saves instead of overwriting them, and locking in one tab closes the journal in every tab.
+
 Storage problems never destroy writing: unreadable saved data is kept aside and offered for download, blocked storage falls back to this tab only with a visible warning, and drafts from the earlier version of the page are migrated once.
 
-Code: `tool/journal.js` (data model and logic, no DOM), `tool/app.js` (page), `tool/sample-journal.js` (synthetic sample). No build step, no dependencies, no network calls.
+Code: `tool/journal.js` (data model and logic, no DOM), `tool/lock.js` (passphrase lock, Web Crypto only), `tool/app.js` (page), `tool/sample-journal.js` (synthetic sample). No build step, no dependencies, no network calls.
 
 ## Tests
 
 Requires Node 18+ and, for the browser tests, Playwright with Chromium available to `require('playwright')`.
 
 ```
-npm test          # journal logic (node:test)
+npm test          # journal and lock logic (node:test)
 npm run test:e2e  # the page in headless Chromium, desktop and phone
 ```
 
