@@ -1,0 +1,10 @@
+{
+  "name": "ai-reflection-companion",
+  "private": true,
+  "description": "Sounding Board. The site has no build step and no dependencies; these scripts only run the local test suites.",
+  "scripts": {
+    "test": "TZ=UTC node --test tests/journal.test.js",
+    "test:e2e": "TZ=UTC node --test tests/e2e.test.js",
+    "test:all": "npm test && npm run test:e2e"
+  }
+}

@@ -41,3 +41,11 @@ Durable, repo-specific context lives here and in `.claude/rules/`. Architecture 
 In-flight task state is separate: it lives in `.claude/state/handoff.md`, written by any session that stops mid-task (the injected Coordination rules make this automatic) and injected into the next session by the plugin's SessionStart hook. Durable facts here, current-task state there.
 
 <!-- repo-knowledge: content below this line is preserved by sync-repo.sh -->
+
+### Journal architecture (2026-11)
+
+- `tool/journal.js` holds the data model (schema version 1, storage key `sb-journal-v1`) and every state change as pure functions; `tool/app.js` only renders and calls it. Keep logic out of `app.js` so `npm test` covers it.
+- Summaries and review prompts must stay descriptive: repeat, count and link the person's words. No interpretation, diagnosis, scores or streaks. `tests/journal.test.js` checks for that wording.
+- Corrupt storage is copied to `sb-journal-corrupt-<ms>` before anything else; a journal written by a newer schema is never overwritten. Legacy keys `sb-untangle`, `sb-feel`, `sb-good` migrate once.
+- All user text goes through `textContent` (the `h()` helper). Do not introduce `innerHTML` with user data.
+- Tests: `npm test` and `npm run test:e2e` (Playwright, file:// URL, asserts zero network requests). The PROFILE.md "Test commands: none" line in ai-instructions is now out of date.
