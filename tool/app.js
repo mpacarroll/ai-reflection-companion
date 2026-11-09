@@ -605,6 +605,24 @@
     renderJournal();
   }
 
+  // Another tab of this page saved. Take its journal so this tab never saves a stale copy
+  // over it (which would silently lose whatever the other tab wrote).
+  window.addEventListener('storage', ev => {
+    if (!state.persistent || ev.storageArea !== storage) return;
+    if (ev.key === null) { state.journal = J.emptyJournal(); state.expanded.clear(); state.editing = null; state.undo = null; renderAll(); return; }
+    if (ev.key !== J.STORAGE_KEY) return;
+    let parsed = null;
+    try { parsed = ev.newValue ? JSON.parse(ev.newValue) : J.emptyJournal(); } catch (err) { return; }
+    const n = J.normalize(parsed);
+    if (n.tooNew) { state.persistent = false; state.notices = [n.problems[0] + ' Another tab saved it, so this tab stopped saving to protect it.']; renderAll(); return; }
+    state.journal = n.journal;
+    state.undo = null;
+    // Do not rebuild the screen under someone mid-edit; their typing would be lost. Saving the
+    // edit applies it to the fresh journal by id and re-renders then.
+    if (state.editing) { $('#jcount').textContent = state.journal.entries.length ? String(state.journal.entries.length) : ''; return; }
+    renderAll();
+  });
+
   renderAll();
   if (state.notices.length || location.hash === '#journal') showTab('journal');
 

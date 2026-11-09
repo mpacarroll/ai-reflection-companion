@@ -300,6 +300,47 @@ test('drafts saved by the earlier version of the page become journal entries', a
   await context.close();
 });
 
+test('two open tabs never overwrite each other', async () => {
+  const { context, page: a } = await open();
+  const b = await context.newPage();
+  await b.goto(PAGE);
+  await a.fill('#f-happened', 'Written in the first tab');
+  await a.click('#untangle [data-save]');
+  await b.waitForFunction(() => window.SoundingBoard.journal.entries.length === 1);
+  assert.equal(await b.textContent('#jcount'), '1');
+  await b.fill('#f-happened', 'Written in the second tab');
+  await b.click('#untangle [data-save]');
+  await a.waitForFunction(() => window.SoundingBoard.journal.entries.length === 2);
+  const c = await context.newPage();
+  await c.goto(PAGE);
+  const texts = (await journal(c)).entries.map(e => e.fields.happened).sort();
+  assert.deepEqual(texts, ['Written in the first tab', 'Written in the second tab']);
+  await context.close();
+});
+
+test('an edit in progress survives a save from another tab', async () => {
+  const { context, page: a } = await open();
+  await a.fill('#f-happened', 'Original text');
+  await a.click('#untangle [data-save]');
+  const id = (await journal(a)).entries[0].id;
+  await toJournal(a);
+  await a.click('#entry-' + id + ' .entry-head');
+  await a.click('[data-edit="' + id + '"]');
+  await a.fill('#edit-' + id + '-happened', 'Half-typed edit');
+  const b = await context.newPage();
+  await b.goto(PAGE);
+  await b.fill('#f-happened', 'From the other tab');
+  await b.click('#untangle [data-save]');
+  await a.waitForFunction(() => window.SoundingBoard.journal.entries.length === 2);
+  assert.equal(await a.inputValue('#edit-' + id + '-happened'), 'Half-typed edit');
+  await a.click('[data-save-edit="' + id + '"]');
+  const c = await context.newPage();
+  await c.goto(PAGE);
+  const texts = (await journal(c)).entries.map(e => e.fields.happened).sort();
+  assert.deepEqual(texts, ['From the other tab', 'Half-typed edit']);
+  await context.close();
+});
+
 test('blocked storage falls back to this tab only and says so', async () => {
   const { context, page, errors } = await open({ init: () => {
     Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('blocked', 'SecurityError'); } });

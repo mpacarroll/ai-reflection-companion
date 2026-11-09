@@ -318,6 +318,26 @@ test('corrupt storage is kept aside, not overwritten, and the readable part surv
   assert.ok(p.corruptKey, 'the original is kept because something was dropped');
 });
 
+test('a damaged journal is kept aside once, not again on every reload', () => {
+  const raw = '{"version":1,"entries":[{"id":"a"';
+  const s = memStorage({ [J.STORAGE_KEY]: raw });
+  J.load(s, NOW);
+  J.load(s, NOW + 1000);
+  J.load(s, NOW + 2000);
+  assert.equal(J.corruptBackups(s).length, 1, 'one copy aside, not one per reload');
+  assert.equal(s.getItem(J.corruptBackups(s)[0]), raw);
+
+  const partial = memStorage({ [J.STORAGE_KEY]: JSON.stringify({ version: 1, themes: [], entries: [
+    { id: 'good', mode: 'free', createdAt: '2026-11-01T10:00:00Z', fields: { text: 'keep me' } },
+    { id: 'bad', mode: 'free', createdAt: 'not a date', fields: { text: 'x' } }
+  ] }) });
+  J.load(partial, NOW);
+  const again = J.load(partial, NOW + 1000);
+  assert.deepEqual(again.journal.entries.map(e => e.id), ['good'], 'the readable part was stored');
+  assert.equal(again.corruptKey, null);
+  assert.equal(J.corruptBackups(partial).length, 1);
+});
+
 test('data from a newer version is never overwritten', () => {
   const raw = JSON.stringify({ version: 7, entries: [] });
   const s = memStorage({ [J.STORAGE_KEY]: raw });

@@ -746,7 +746,13 @@
       }
       if (bad) {
         corruptKey = CORRUPT_PREFIX + Math.floor(now);
-        try { storage.setItem(corruptKey, raw); notices.push('Part of your saved journal could not be read. The original was kept aside on this device, and you can download it from Your data.'); }
+        try {
+          storage.setItem(corruptKey, raw);
+          notices.push('Part of your saved journal could not be read. The original was kept aside on this device, and you can download it from Your data.');
+          // The original is safe aside, so store the readable part now. Otherwise every reload
+          // would find the same damaged data and keep another full copy until storage fills up.
+          save(storage, journal);
+        }
         catch (err) { notices.push('Part of your saved journal could not be read, and there was no room to keep the original aside.'); corruptKey = null; }
       }
     }
