@@ -88,6 +88,8 @@
   function isObj(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
   function str(x) { return typeof x === 'string' ? x : ''; }
   function iso(now) { return new Date(now).toISOString(); }
+  /** A journal sealed by lock.js. Its contents can only be read with the passphrase. */
+  function isLockedShape(x) { return isObj(x) && x.kind === 'sounding-board-locked' && x.encrypted === true; }
   function ms(isoString) { const t = Date.parse(isoString); return Number.isFinite(t) ? t : NaN; }
 
   let idCounter = 0;
@@ -656,6 +658,7 @@
     let data;
     try { data = JSON.parse(text); } catch (err) { return { ok: false, error: 'That file is not a Sounding Board export (it is not valid JSON).' }; }
     let raw = data;
+    if (isLockedShape(data)) return { ok: false, locked: data, error: 'This backup is locked. Type the passphrase it was locked with to import it.' };
     if (isObj(data) && data.kind === 'journal-export') {
       if (typeof data.version === 'number' && data.version > SCHEMA_VERSION) return { ok: false, error: 'That export came from a newer version of Sounding Board.' };
       raw = data.journal;
@@ -734,6 +737,11 @@
     if (raw) {
       let parsed = null, bad = false;
       try { parsed = JSON.parse(raw); } catch (err) { bad = true; }
+      if (!bad && isLockedShape(parsed)) {
+        // Locked with a passphrase: the page asks for it. Nothing else is read or migrated
+        // until then, and nothing is saved over it.
+        return { journal: emptyJournal(), persistent: true, locked: parsed, notices };
+      }
       if (!bad) {
         const n = normalize(parsed);
         if (n.tooNew) {
@@ -809,7 +817,7 @@
 
   return {
     SCHEMA_VERSION, STORAGE_KEY, CORRUPT_PREFIX, LEGACY_KEYS, MODES, FEELINGS, STEP_STATUSES, SUMMARY_LIMITS, DAY,
-    emptyJournal, normalize, legacyEntries,
+    emptyJournal, normalize, legacyEntries, isLockedShape,
     addEntry, getEntry, updateEntry, deleteEntry, restoreEntry, setStepStatus,
     addTheme, updateTheme, deleteTheme, setEntryTheme, suggestThemes,
     filterEntries, rangeFor, entryText, dayKey, shortDate,
